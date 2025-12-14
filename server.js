@@ -1,24 +1,37 @@
 // server.js
-"use strict";
 
-require("dotenv").config();
+import "dotenv/config";
+import path from "path";
+import express from "express";
+import cors from "cors";
+import OpenAI from "openai";
+import { fileURLToPath } from "url";
 
-const path = require("path");
-const express = require("express");
-const cors = require("cors");
-const OpenAI = require("openai");
+// ✅ ES Module 환경에서 __dirname 대응
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// --------------------
+// App 기본 설정
+// --------------------
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// ✅ Render/일반 배포에서 정적 파일 제공: public/index.html
+// ✅ Render/일반 배포에서 정적 파일 제공
+// public/index.html
 app.use(express.static(path.join(__dirname, "public")));
 
+// --------------------
+// OpenAI 설정
+// --------------------
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// --------------------
+// Silent Coach 시스템 프롬프트
+// --------------------
 const COACH_SYSTEM = `
 너는 'Silent Coach'다. 사용자의 말을 차분하고 따뜻한 멘토/코치 톤으로 돕는다.
 규칙:
@@ -37,6 +50,9 @@ JSON 스키마:
 }
 `.trim();
 
+// --------------------
+// 유틸 함수
+// --------------------
 function pickTone(mode = "calm") {
   if (mode === "coach") return "coach";
   if (mode === "mentor") return "mentor";
@@ -54,7 +70,7 @@ function safeJsonParse(maybeJsonText) {
   try {
     return JSON.parse(raw);
   } catch {
-    // 모델이 실수로 앞뒤 텍스트를 섞었을 때 보정
+    // 모델이 앞뒤 텍스트를 섞었을 때 보정
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
     if (start >= 0 && end >= 0 && end > start) {
@@ -64,12 +80,16 @@ function safeJsonParse(maybeJsonText) {
   }
 }
 
-// ✅ 헬스 체크
+// --------------------
+// Health Check
+// --------------------
 app.get("/health", (req, res) => {
   res.json({ ok: true });
 });
 
-// ✅ 코치 API
+// --------------------
+// Silent Coach API
+// --------------------
 app.post("/api/coach", async (req, res) => {
   try {
     const text = String(req.body?.text || "").trim();
@@ -79,13 +99,20 @@ app.post("/api/coach", async (req, res) => {
     if (!text) {
       return res.status(400).json({ ok: false, error: "text is required" });
     }
+
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ ok: false, error: "Missing OPENAI_API_KEY" });
+      return res.status(500).json({
+        ok: false,
+        error: "Missing OPENAI_API_KEY",
+      });
     }
 
     const messages = [
       { role: "system", content: COACH_SYSTEM },
-      { role: "user", content: `tone=${tone}\n사용자 발화:\n${text}` },
+      {
+        role: "user",
+        content: `tone=${tone}\n사용자 발화:\n${text}`,
+      },
     ];
 
     const response = await openai.chat.completions.create({
@@ -98,10 +125,12 @@ app.post("/api/coach", async (req, res) => {
     const content = response.choices?.[0]?.message?.content ?? "";
     const coach = safeJsonParse(content);
 
-    // ✅ 최소 검증 (필수 필드 없으면 보정)
+    // ✅ 최소 검증 및 보정
     if (!coach.summary) coach.summary = "요약을 만들지 못했어요.";
     if (!Array.isArray(coach.actions)) coach.actions = [];
-    while (coach.actions.length < 3) coach.actions.push("지금 할 수 있는 작은 행동을 하나 정해보세요.");
+    while (coach.actions.length < 3) {
+      coach.actions.push("지금 할 수 있는 작은 행동을 하나 정해보세요.");
+    }
     coach.actions = coach.actions.slice(0, 3);
 
     return res.json({ ok: true, coach });
@@ -114,9 +143,11 @@ app.post("/api/coach", async (req, res) => {
   }
 });
 
-// ✅ Render 포트
+// --------------------
+// Render Port Listen
+// --------------------
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Silent Coach running on http://localhost:${PORT}`);
+  console.log(`Silent Coach running on port ${PORT}`);
   console.log("Your service is live 🚀");
 });

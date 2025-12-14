@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Silent Coach (Text Only)</title>
+
+  <!-- ✅ PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b1020">
+
+  <style>
+    body {
+      margin:0;
+      font-family:system-ui,-apple-system,"Apple SD Gothic Neo","맑은 고딕",sans-serif;
+      background:#0b1020;
+      color:#e5e7eb;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 26px; }
+    h1 { margin:0 0 10px; font-size: 34px; }
+
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+
+    .status {
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 12px;
+    }
+    .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; background:#94a3b8; }
+    .listening .dot { background:#22c55e; }
+    .thinking .dot { background:#f59e0b; }
+    .error .dot { background:#ef4444; }
+
+    button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.secondary { background:#334155; }
+    button.danger { background:#ef4444; }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+
+    label.toggle {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 13px;
+    }
+    input[type="checkbox"] { width:18px; height:18px; }
+
+    .hint { font-size: 12px; opacity:.75; margin-top:10px; line-height:1.5; }
+
+    .card {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .label { font-size: 12px; opacity:.85; margin-bottom: 8px; }
+    .big {
+      font-size: 18px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .muted { opacity:.7; }
+
+    .scrollBox {
+      max-height: 260px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    .cols { display:grid; grid-template-columns:1fr; gap:16px; }
+    @media (min-width: 980px) {
+      .cols { grid-template-columns:1fr 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1>Silent Coach</h1>
+
+  <div class="row">
+    <span id="status" class="status"><span class="dot"></span><span id="statusText">대기 중</span></span>
+
+    <button id="btnStart">Start</button>
+    <button id="btnStop" class="danger" disabled>Stop</button>
+    <button id="btnClear" class="secondary">Clear</button>
+
+    <label class="toggle">
+      <input id="toggleCoach" type="checkbox" checked />
+      AI 코치 ON
+    </label>
+  </div>
+
+  <div class="hint">
+    • 말하는 동안 즉시 자막(interim) 표시<br/>
+    • 말이 끝나면 최종 전사(final) 누적<br/>
+    • 최종 전사가 연속으로 들어와도 AI는 0.6초 디바운스로 1회만 호출
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <div class="label">🎙 실시간 전사 (interim)</div>
+      <div id="liveCaption" class="big muted">여기에 말한 내용이 실시간으로 표시됩니다…</div>
+    </div>
+
+    <div class="card">
+      <div class="label">🤖 코치 답변 (텍스트)</div>
+      <div id="coachReply" class="big muted">AI 코치가 켜져 있으면 여기에 답변이 표시됩니다…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">✅ 최종 전사 (최근 N줄)</div>
+    <div id="finalText" class="big muted scrollBox">최종 확정된 문장이 여기에 쌓입니다…</div>
+  </div>
+</div>
+
+<script>
+  // ✅ PWA: Service Worker 등록
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+
+  /* ===================== 설정 ===================== */
+  const MAX_FINAL_LINES = 30;
+
+  /* ===================== 요소 ===================== */
+  const statusEl = document.getElementById("status");
+  const statusTextEl = document.getElementById("statusText");
+  const btnStart = document.getElementById("btnStart");
+  const btnStop  = document.getElementById("btnStop");
+  const btnClear = document.getElementById("btnClear");
+  const toggleCoachEl = document.getElementById("toggleCoach");
+
+  const liveCaptionEl = document.getElementById("liveCaption");
+  const finalTextEl   = document.getElementById("finalText");
+  const coachReplyEl  = document.getElementById("coachReply");
+
+  /* ===================== 유틸/상태 ===================== */
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let running = false;
+  let lastFinal = "";
+  let restartTimer = null;
+  let thinkingLock = false;
+
+  // ✅ 디바운스 타이머(폭주 방지)
+  let aiTimer = null;
+
+  function setStatus(cls, text) {
+    statusEl.className = "status " + (cls || "");
+    statusTextEl.textContent = text;
+  }
+
+  function setLive(text) {
+    liveCaptionEl.classList.remove("muted");
+    liveCaptionEl.textContent = text || "…";
+  }
+
+  function setCoach(text) {
+    coachReplyEl.classList.remove("muted");
+    coachReplyEl.textContent = text;
+  }
+
+  function appendFinal(text) {
+    finalTextEl.classList.remove("muted");
+
+    let lines = [];
+    const cur = finalTextEl.textContent.trim();
+    if (cur && !cur.includes("최종 확정된 문장이")) {
+      lines = cur.split("\n");
+    }
+
+    lines.push(text);
+    if (lines.length > MAX_FINAL_LINES) {
+      lines = lines.slice(lines.length - MAX_FINAL_LINES);
+    }
+
+    finalTextEl.textContent = lines.join("\n");
+    finalTextEl.scrollTop = finalTextEl.scrollHeight;
+  }
+
+  function normalizeFinal(s) {
+    return (s || "").replace(/\s+/g, " ").trim();
+  }
+
+  function localCoach(text) {
+    const t = text.trim();
+    if (!t) return "조금 더 말해줄래?";
+    const short = t.length > 60 ? t.slice(0,60) + "…" : t;
+    return `요약: ${short}
+다음 행동: 한 문장 목표로 다시 적어봐.
+확인: 이걸 통해 얻고 싶은 결과는 뭐야?`;
+  }
+
+  // ✅ 디바운스 스케줄러: 마지막 final 기준 0.6초 후 1회만 AI 호출
+  function scheduleAI(text) {
+    clearTimeout(aiTimer);
+    aiTimer = setTimeout(() => {
+      if (!thinkingLock) askAI(text);
+    }, 600);
+  }
+
+  async function askAI(finalText) {
+    const prompt = normalizeFinal(finalText);
+    if (!prompt) {
+      setCoach("말한 내용이 비어있어. 다시 말해줘.");
+      return;
+    }
+
+    try {
+      thinkingLock = true;
+      setStatus("thinking", "답변 생성 중…");
+      setCoach("답변 생성 중…");
+
+      // ✅ 배포/로컬 공통: 상대경로만 사용
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: prompt })
+      });
+
+      const data = await res.json();
+      const reply = (data.reply || "").trim();
+
+      setCoach(reply || "응답이 비어있어. 다시 말해줘.");
+      if (running) setStatus("listening", "듣는 중…");
+      else setStatus("", "대기 중");
+    } catch (e) {
+      setCoach("서버 연결 실패. 서버(CMD) 또는 배포 서버 상태를 확인해줘.");
+      setStatus("error", "서버 오류");
+    } finally {
+      thinkingLock = false;
+    }
+  }
+
+  /* ===================== STT 구성 ===================== */
+  function buildRecognition() {
+    const r = new SpeechRecognition();
+    r.lang = "ko-KR";
+    r.continuous = true;
+    r.interimResults = true;
+
+    r.onstart = () => setStatus("listening", "듣는 중…");
+    r.onerror = () => setStatus("error", "인식 오류");
+
+    r.onend = () => {
+      if (!running) {
+        setStatus("", "대기 중");
+        return;
+      }
+      setStatus("thinking", "재연결 중…");
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(() => {
+        try { r.start(); } catch {}
+      }, 250);
+    };
+
+    r.onresult = (e) => {
+      let interim = "";
+      let finalText = "";
+
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const txt = (e.results[i][0].transcript || "").trim();
+        if (!txt) continue;
+        if (e.results[i].isFinal) finalText += (finalText ? " " : "") + txt;
+        else interim += (interim ? " " : "") + txt;
+      }
+
+      if (interim) setLive(interim);
+      else if (finalText) setLive(finalText);
+
+      const cleanedFinal = normalizeFinal(finalText);
+      if (!cleanedFinal || cleanedFinal === lastFinal) return;
+
+      lastFinal = cleanedFinal;
+      appendFinal(cleanedFinal);
+
+      if (toggleCoachEl.checked) {
+        scheduleAI(cleanedFinal);
+      } else {
+        setCoach(localCoach(cleanedFinal));
+      }
+    };
+
+    return r;
+  }
+
+  /* ===================== 컨트롤 ===================== */
+  function start() {
+    if (running) return;
+
+    if (!SpeechRecognition) {
+      setStatus("error", "이 브라우저는 음성인식을 지원하지 않음");
+      alert("이 브라우저는 SpeechRecognition을 지원하지 않아. Chrome 최신 버전 권장!");
+      return;
+    }
+
+    // ✅ 마이크 권한 안내
+    setCoach("마이크 권한을 허용해줘. (주소창 왼쪽 🔒/ⓘ 아이콘에서 마이크 허용)");
+
+    running = true;
+    btnStart.disabled = true;
+    btnStop.disabled = false;
+
+    if (!recognition) recognition = buildRecognition();
+
+    try { recognition.start(); }
+    catch { setTimeout(() => { try { recognition.start(); } catch {} }, 300); }
+  }
+
+  function stop() {
+    running = false;
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+
+    clearTimeout(restartTimer);
+    clearTimeout(aiTimer);
+
+    if (recognition) {
+      try { recognition.stop(); } catch {}
+      recognition = null;
+    }
+
+    setStatus("", "대기 중");
+  }
+
+  function clearAll() {
+    liveCaptionEl.textContent = "여기에 말한 내용이 실시간으로 표시됩니다…";
+    liveCaptionEl.classList.add("muted");
+
+    finalTextEl.textContent = "최종 확정된 문장이 여기에 쌓입니다…";
+    finalTextEl.classList.add("muted");
+
+    coachReplyEl.textContent = "AI 코치가 켜져 있으면 여기에 답변이 표시됩니다…";
+    coachReplyEl.classList.add("muted");
+
+    lastFinal = "";
+  }
+
+  btnStart.onclick = start;
+  btnStop.onclick  = stop;
+  btnClear.onclick = clearAll;
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      running ? stop() : start();
+    }
+  });
+
+  toggleCoachEl.addEventListener("change", () => {
+    setCoach(toggleCoachEl.checked ? "AI 코치 ON" : "AI 코치 OFF (로컬 규칙 모드)");
+  });
+</script>
+</body>
+</html>

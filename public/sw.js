@@ -28,7 +28,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // ✅ API는 캐시하지 않음 (항상 서버로)
+  // API는 캐시하지 않음
   if (url.pathname.startsWith("/api/") || url.pathname === "/healthz") return;
 
   event.respondWith(
@@ -37,7 +37,6 @@ self.addEventListener("fetch", (event) => {
 
       return fetch(req)
         .then((res) => {
-          // GET만 캐시
           if (req.method === "GET") {
             const copy = res.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));

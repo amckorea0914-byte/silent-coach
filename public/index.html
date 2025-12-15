@@ -6,275 +6,360 @@
   <title>Silent Coach</title>
 
   <style>
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: radial-gradient(circle at top left, #1e3a8a 0, #020617 55%, #000 100%);
-      color:#e5e7eb;
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      color: #e5e7eb;
+      background: radial-gradient(circle at top left, #1e3a8a 0, #0b1224 55%, #030712 100%);
+      min-height: 100vh;
     }
-    .wrap{max-width:960px;margin:0 auto;padding:18px}
-    h1{margin:10px 0 18px;text-align:center;letter-spacing:1px}
-    .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center}
-    button{
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      padding:14px 20px;
-      border-radius:16px;
-      font-weight:800;
-      min-width:160px;
-      cursor:pointer;
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 16px 60px; }
+    h1 { text-align: center; margin: 16px 0 18px; letter-spacing: .5px; }
+
+    .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+    .btn {
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: #e5e7eb;
+      padding: 12px 18px;
+      border-radius: 14px;
+      cursor: pointer;
+      font-weight: 700;
+      min-width: 120px;
     }
-    button.primary{background:rgba(37,99,235,.9)}
-    button.danger{background:rgba(185,28,28,.75)}
-    button:disabled{opacity:.45;cursor:not-allowed}
-    .pill{
-      display:inline-flex;align-items:center;gap:10px;
-      padding:10px 14px;border-radius:999px;
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.12);
-      font-weight:700;
+    .btn.primary { background: rgba(59,130,246,.65); }
+    .btn.danger { background: rgba(220,38,38,.60); }
+    .btn.gray { background: rgba(148,163,184,.18); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      padding: 10px 14px;
+      border-radius: 999px;
+      user-select: none;
+      font-weight: 700;
     }
-    .grid{display:grid;gap:14px;margin-top:16px}
-    .card{
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:18px;
-      padding:14px;
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
+    .dot.off { background: #64748b; }
+
+    select {
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: #e5e7eb;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      outline: none;
+      min-width: 180px;
     }
-    .label{opacity:.9;font-weight:900;margin-bottom:10px}
-    textarea{
-      width:100%;
-      min-height:120px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(2,6,23,.35);
-      color:#e5e7eb;
-      padding:12px;
-      outline:none;
-      font-size:16px;
-      line-height:1.5;
-      resize:vertical;
+
+    .panel {
+      margin-top: 18px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(2,6,23,.45);
+      border-radius: 18px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.28);
     }
-    .small{opacity:.8;font-size:13px}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
-    select{
-      background:rgba(255,255,255,.06);
-      color:#e5e7eb;
-      border:1px solid rgba(255,255,255,.14);
-      padding:10px 12px;
-      border-radius:14px;
-      font-weight:800;
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      display: flex; align-items: center; gap: 10px;
+      color: #c7d2fe;
+    }
+    .emoji { font-size: 18px; }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(15,23,42,.45);
+      color: #e5e7eb;
+      border-radius: 14px;
+      padding: 12px 12px;
+      outline: none;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+    .status {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: rgba(229,231,235,.75);
+    }
+    .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: rgba(229,231,235,.72);
+      text-align: center;
+    }
+    .msg {
+      white-space: pre-wrap;
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <h1>Silent Coach</h1>
 
-    <div class="row">
-      <button class="primary" id="btnStart">🎤 Start</button>
-      <button class="danger" id="btnStop">⛔ Stop</button>
-      <button id="btnClear">Clear</button>
+    <div class="row" style="margin-bottom: 10px;">
+      <button class="btn primary" id="startBtn">🔊 Start</button>
+      <button class="btn danger" id="stopBtn" disabled>⛔ Stop</button>
+      <button class="btn gray" id="clearBtn">Clear</button>
 
-      <span class="pill" id="statusPill">⏸️ 대기</span>
-      <span class="pill">
-        <input type="checkbox" id="aiOn" checked />
-        <label for="aiOn">AI 코치 ON</label>
+      <span class="pill" id="micPill">
+        <span class="dot off" id="micDot"></span>
+        <span id="micState">대기</span>
       </span>
+
+      <label class="pill" style="cursor:pointer;">
+        <input type="checkbox" id="coachOn" checked />
+        <span>AI 코치 ON</span>
+      </label>
     </div>
 
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-bottom: 14px;">
       <select id="tone">
-        <option value="calm">tone: calm</option>
-        <option value="friendly">tone: friendly</option>
-        <option value="strict">tone: strict</option>
+        <option value="calm" selected>tone: calm</option>
+        <option value="direct">tone: direct</option>
+        <option value="warm">tone: warm</option>
       </select>
-      <select id="len">
+
+      <select id="length">
         <option value="short">length: short</option>
         <option value="medium" selected>length: medium</option>
         <option value="long">length: long</option>
       </select>
-      <button id="btnPing">🔎 Ping 테스트</button>
+
+      <button class="btn" id="pingBtn">🔎 Ping 테스트</button>
     </div>
 
-    <div class="grid">
-      <div class="card">
-        <div class="label">🎧 실시간 전사 (interim)</div>
-        <textarea id="interim" placeholder="여기에 말한 내용이 실시간으로 표시됩니다..." readonly></textarea>
-        <div class="small mono" id="micState">mic: 준비</div>
+    <div class="panel">
+      <h2><span class="emoji">🎧</span> 실시간 전사 (interim)</h2>
+      <textarea id="interimText" placeholder="여기에 말한 내용이 실시간으로 표시됩니다..."></textarea>
+      <div class="status">
+        <div id="micStatus">mic: 준비</div>
+        <div id="sttStatus"></div>
       </div>
+    </div>
 
-      <div class="card">
-        <div class="label">🧠 코치 답변 (텍스트)</div>
-        <textarea id="coach" placeholder="AI 코치가 켜져 있으면 여기에 답변이 표시됩니다..." readonly></textarea>
-        <div class="small mono" id="aiState">ai: 준비</div>
+    <div class="panel">
+      <h2><span class="emoji">🧠</span> 코치 답변 (텍스트)</h2>
+      <textarea id="coachAnswer" class="msg" placeholder="AI 코치가 켜져 있으면 여기에 답변이 표시됩니다..."></textarea>
+      <div class="status">
+        <div id="aiStatus">ai: 준비</div>
+        <div id="netStatus"></div>
       </div>
+    </div>
+
+    <div class="hint">
+      테스트: Ping → Start → “오늘 집중이 잘 안 돼” 말하기 → Stop → 코치 답변 확인
     </div>
   </div>
 
-<script>
-(() => {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  <script>
+    // ---------- DOM ----------
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn  = document.getElementById("stopBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const pingBtn  = document.getElementById("pingBtn");
 
-  const btnStart = document.getElementById("btnStart");
-  const btnStop  = document.getElementById("btnStop");
-  const btnClear = document.getElementById("btnClear");
-  const btnPing  = document.getElementById("btnPing");
+    const interimText = document.getElementById("interimText");
+    const coachAnswer = document.getElementById("coachAnswer");
 
-  const statusPill = document.getElementById("statusPill");
-  const interimBox = document.getElementById("interim");
-  const coachBox   = document.getElementById("coach");
-  const micState   = document.getElementById("micState");
-  const aiState    = document.getElementById("aiState");
+    const toneSel = document.getElementById("tone");
+    const lengthSel = document.getElementById("length");
+    const coachOn = document.getElementById("coachOn");
 
-  const aiOn  = document.getElementById("aiOn");
-  const tone  = document.getElementById("tone");
-  const len   = document.getElementById("len");
+    const micDot = document.getElementById("micDot");
+    const micState = document.getElementById("micState");
+    const micStatus = document.getElementById("micStatus");
+    const aiStatus = document.getElementById("aiStatus");
+    const netStatus = document.getElementById("netStatus");
 
-  let rec = null;
-  let running = false;
+    // ---------- Helpers ----------
+    function setMic(on, label) {
+      micDot.classList.toggle("off", !on);
+      micState.textContent = label;
+      micStatus.textContent = "mic: " + label;
+    }
 
-  // ✅ 최종 전사 누적
-  let finalText = "";
-  // ✅ 디바운스(말 끝나고 한 번만 코치 호출)
-  let coachTimer = null;
+    function setAI(label) {
+      aiStatus.textContent = "ai: " + label;
+    }
 
-  function setStatus(text) {
-    statusPill.textContent = text;
-  }
+    function setNet(label) {
+      netStatus.textContent = label ? ("net: " + label) : "";
+    }
 
-  function safeAppendInterim(t) {
-    // 화면에 너무 길게 쌓이지 않게
-    const s = (t || "").slice(-500);
-    interimBox.value = s;
-  }
+    function appendLineToCoach(line) {
+      const cur = coachAnswer.value || "";
+      coachAnswer.value = (cur ? cur + "\n" : "") + line;
+    }
 
-  async function callCoach(text) {
-    if (!aiOn.checked) return;
-    if (!text.trim()) return;
+    // ---------- Ping ----------
+    pingBtn.addEventListener("click", async () => {
+      setNet("ping...");
+      try {
+        const res = await fetch("/api/ping", { cache: "no-store" });
+        const data = await res.json();
+        if (data?.ok) {
+          coachAnswer.value = "✅ ping ok:\n" + JSON.stringify(data);
+          setAI("ping ok");
+          setNet("ok");
+        } else {
+          coachAnswer.value = "❌ ping fail:\n" + JSON.stringify(data);
+          setAI("ping fail");
+          setNet("fail");
+        }
+      } catch (e) {
+        coachAnswer.value = "❌ ping 실패: " + (e?.message || e);
+        setAI("ping fail");
+        setNet("error");
+      }
+    });
 
-    aiState.textContent = "ai: 호출중...";
-    coachBox.value = "⌛ 코치 생각중...";
+    // ---------- SpeechRecognition ----------
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let running = false;
+    let finalText = "";
 
-    try {
-      const r = await fetch("/api/coach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, tone: tone.value, length: len.value })
-      });
+    function initSTT() {
+      if (!SpeechRecognition) {
+        setMic(false, "미지원");
+        appendLineToCoach("❌ 이 브라우저는 Web Speech API(STT)를 지원하지 않습니다.");
+        return false;
+      }
 
-      const data = await r.json().catch(() => ({}));
+      recognition = new SpeechRecognition();
+      recognition.lang = "ko-KR";
+      recognition.interimResults = true;
+      recognition.continuous = true;
 
-      if (!r.ok) {
-        const msg = data?.detail || data?.error || ("HTTP " + r.status);
-        coachBox.value = "❌ 코치 오류: " + msg;
-        aiState.textContent = "ai: 오류";
-        console.error("coach error:", data);
+      recognition.onstart = () => {
+        running = true;
+        setMic(true, "듣는중...");
+        stopBtn.disabled = false;
+        startBtn.disabled = true;
+      };
+
+      recognition.onerror = (event) => {
+        appendLineToCoach("❌ STT 오류: " + (event?.error || "unknown"));
+        setMic(false, "오류");
+        running = false;
+        stopBtn.disabled = true;
+        startBtn.disabled = false;
+      };
+
+      recognition.onend = () => {
+        running = false;
+        setMic(false, "중지");
+        stopBtn.disabled = true;
+        startBtn.disabled = false;
+      };
+
+      recognition.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const txt = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalText += txt + " ";
+          else interim += txt;
+        }
+        // 화면 표시 (final + interim)
+        interimText.value = (finalText + interim).trim();
+      };
+
+      return true;
+    }
+
+    // ---------- Coach Call ----------
+    async function callCoach() {
+      const text = (interimText.value || "").trim();
+      if (!text) {
+        coachAnswer.value = "(응답 없음) - 보낼 텍스트가 없습니다.";
+        setAI("완료");
         return;
       }
 
-      coachBox.value = data.reply || "(응답 없음)";
-      aiState.textContent = "ai: 완료";
-    } catch (e) {
-      coachBox.value = "❌ 코치 호출 실패: " + (e?.message || e);
-      aiState.textContent = "ai: 실패";
-      console.error(e);
-    }
-  }
-
-  function scheduleCoach() {
-    clearTimeout(coachTimer);
-    // 말 멈춘 뒤 900ms 후에 한 번만 호출
-    coachTimer = setTimeout(() => {
-      callCoach(finalText);
-    }, 900);
-  }
-
-  function start() {
-    if (!SpeechRecognition) {
-      setStatus("❌ 이 브라우저는 음성인식 미지원");
-      return;
-    }
-
-    if (running) return;
-
-    rec = new SpeechRecognition();
-    rec.lang = "ko-KR";
-    rec.interimResults = true;
-
-    // ✅ 모바일에서 끊겨도 계속 이어지게
-    rec.continuous = true;
-
-    rec.onstart = () => {
-      running = true;
-      setStatus("🟢 듣는중...");
-      micState.textContent = "mic: 듣는중";
-      aiState.textContent = "ai: 준비";
-    };
-
-    rec.onerror = (e) => {
-      console.error("rec error:", e);
-      setStatus("⚠️ 음성 오류: " + (e?.error || "unknown"));
-      micState.textContent = "mic: 오류";
-    };
-
-    rec.onend = () => {
-      running = false;
-      setStatus("⏸️ 중지됨");
-      micState.textContent = "mic: 중지";
-    };
-
-    rec.onresult = (ev) => {
-      let interim = "";
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const txt = ev.results[i][0].transcript;
-        if (ev.results[i].isFinal) {
-          finalText += (finalText ? " " : "") + txt.trim();
-        } else {
-          interim += txt;
-        }
+      if (!coachOn.checked) {
+        coachAnswer.value = "(AI 코치 OFF) - 텍스트만 기록했습니다.";
+        setAI("완료");
+        return;
       }
 
-      // ✅ 실시간은 interim만 표시(반복 “지금 지금…” 완화)
-      safeAppendInterim(interim || finalText);
+      setAI("요청중...");
+      coachAnswer.value = "⏳ 코치 생각 중...\n\n(요청 텍스트)\n" + text;
 
-      // ✅ final이 조금이라도 늘었으면 코치 예약
-      scheduleCoach();
-    };
+      try {
+        const res = await fetch("/api/coach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            tone: toneSel.value,
+            length: lengthSel.value
+          })
+        });
 
-    rec.start();
-  }
+        const data = await res.json();
 
-  function stop() {
-    try { rec && rec.stop(); } catch {}
-  }
-
-  btnStart.onclick = () => start();
-  btnStop.onclick  = () => stop();
-  btnClear.onclick = () => {
-    finalText = "";
-    interimBox.value = "";
-    coachBox.value = "";
-    aiState.textContent = "ai: 준비";
-    setStatus("⏸️ 대기");
-  };
-
-  btnPing.onclick = async () => {
-    aiState.textContent = "ai: ping...";
-    try {
-      const r = await fetch("/api/ping");
-      const d = await r.json();
-      coachBox.value = "✅ ping ok: " + JSON.stringify(d);
-      aiState.textContent = "ai: ping ok";
-    } catch (e) {
-      coachBox.value = "❌ ping 실패: " + (e?.message || e);
-      aiState.textContent = "ai: ping fail";
+        if (data?.ok) {
+          coachAnswer.value = data.coach || "(빈 응답)";
+          setAI("완료");
+        } else {
+          coachAnswer.value = "❌ 서버 응답 오류:\n" + (data?.error || JSON.stringify(data));
+          setAI("실패");
+        }
+      } catch (e) {
+        coachAnswer.value = "❌ 네트워크/파싱 오류:\n" + (e?.message || e);
+        setAI("실패");
+      }
     }
-  };
 
-})();
-</script>
+    // ---------- Buttons ----------
+    startBtn.addEventListener("click", () => {
+      if (!recognition) {
+        const ok = initSTT();
+        if (!ok) return;
+      }
+      finalText = "";
+      interimText.value = "";
+      setAI("준비");
+      try {
+        recognition.start();
+      } catch (e) {
+        // start 연속 호출 방지
+      }
+    });
+
+    stopBtn.addEventListener("click", async () => {
+      if (recognition && running) {
+        try { recognition.stop(); } catch (e) {}
+      } else {
+        setMic(false, "중지");
+      }
+      // ✅ 핵심: Stop 누르면 코치 호출
+      await callCoach();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      finalText = "";
+      interimText.value = "";
+      coachAnswer.value = "";
+      setAI("준비");
+      setNet("");
+      setMic(false, "대기");
+    });
+
+    // 초기 상태
+    setMic(false, "대기");
+    setAI("준비");
+  </script>
 </body>
 </html>

@@ -111,6 +111,7 @@
       <button class="btn primary" id="startBtn">🔊 Start</button>
       <button class="btn danger" id="stopBtn" disabled>⛔ Stop</button>
       <button class="btn gray" id="clearBtn">Clear</button>
+      <button class="btn" id="coachBtn">🧠 코치 요청</button>
 
       <span class="pill" id="micPill">
         <span class="dot off" id="micDot"></span>
@@ -356,6 +357,7 @@
       setNet("");
       setMic(false, "대기");
     });
+      document.getElementById("coachBtn").addEventListener("click", callCoach);
 
     // 초기 상태
     setMic(false, "대기");

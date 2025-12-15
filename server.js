@@ -1,153 +1,80 @@
-// server.js
+"use strict";
 
-import "dotenv/config";
-import path from "path";
-import express from "express";
-import cors from "cors";
-import OpenAI from "openai";
-import { fileURLToPath } from "url";
+require("dotenv").config();
 
-// ✅ ES Module 환경에서 __dirname 대응
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const path = require("path");
+const express = require("express");
+const cors = require("cors");
+const OpenAI = require("openai");
 
-// --------------------
-// App 기본 설정
-// --------------------
 const app = express();
+
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// ✅ Render/일반 배포에서 정적 파일 제공
-// public/index.html
+// ✅ 요청이 들어오는지 Render Logs에서 무조건 보이게
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.url}`);
+  next();
+});
+
+// ✅ 정적 파일
 app.use(express.static(path.join(__dirname, "public")));
 
-// --------------------
-// OpenAI 설정
-// --------------------
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// ✅ 서버 살아있나 테스트용
+app.get("/api/ping", (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// --------------------
-// Silent Coach 시스템 프롬프트
-// --------------------
-const COACH_SYSTEM = `
-너는 'Silent Coach'다. 사용자의 말을 차분하고 따뜻한 멘토/코치 톤으로 돕는다.
-규칙:
-- 판단/비난 금지, 짧고 명확하게.
-- 사용자의 말에서 핵심 감정/상황을 먼저 공감.
-- 결론은 항상 "요약 + 다음 행동 3개"로 끝낸다.
-- 행동은 5분 안에 할 수 있는 수준으로 제안한다.
-- 출력은 반드시 JSON만. 다른 텍스트 금지.
-JSON 스키마:
-{
-  "tone": "calm|coach|mentor",
-  "summary": "한 문장 요약",
-  "insight": "핵심 통찰 1~2문장",
-  "actions": ["행동1", "행동2", "행동3"],
-  "one_liner": "짧은 마무리 한 줄"
-}
-`.trim();
-
-// --------------------
-// 유틸 함수
-// --------------------
-function pickTone(mode = "calm") {
-  if (mode === "coach") return "coach";
-  if (mode === "mentor") return "mentor";
-  return "calm";
-}
-
-function pickMaxTokens(length = "medium") {
-  if (length === "short") return 180;
-  if (length === "long") return 450;
-  return 300;
-}
-
-function safeJsonParse(maybeJsonText) {
-  const raw = String(maybeJsonText || "").trim();
-  try {
-    return JSON.parse(raw);
-  } catch {
-    // 모델이 앞뒤 텍스트를 섞었을 때 보정
-    const start = raw.indexOf("{");
-    const end = raw.lastIndexOf("}");
-    if (start >= 0 && end >= 0 && end > start) {
-      return JSON.parse(raw.slice(start, end + 1));
-    }
-    throw new Error("JSON parse failed");
-  }
-}
-
-// --------------------
-// Health Check
-// --------------------
-app.get("/health", (req, res) => {
-  res.json({ ok: true });
-});
-
-// --------------------
-// Silent Coach API
-// --------------------
+// ✅ 코치 호출
 app.post("/api/coach", async (req, res) => {
   try {
-    const text = String(req.body?.text || "").trim();
-    const tone = pickTone(req.body?.tone);
-    const length = req.body?.length || "medium";
+    const { text = "", tone = "calm", length = "medium" } = req.body || {};
+    const apiKey = process.env.OPENAI_API_KEY;
 
-    if (!text) {
-      return res.status(400).json({ ok: false, error: "text is required" });
+    console.log("[COACH] text:", text);
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY in environment." });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({
-        ok: false,
-        error: "Missing OPENAI_API_KEY",
-      });
+    if (!text.trim()) {
+      return res.json({ reply: "말한 내용이 비어 있어요. 다시 한 번 말해줘." });
     }
 
-    const messages = [
-      { role: "system", content: COACH_SYSTEM },
-      {
-        role: "user",
-        content: `tone=${tone}\n사용자 발화:\n${text}`,
-      },
-    ];
+    const client = new OpenAI({ apiKey });
 
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages,
-      temperature: 0.6,
-      max_tokens: pickMaxTokens(length),
+    const system = `
+너는 사용자의 말을 요약하고, ${tone} 톤으로 ${length} 길이로 코칭한다.
+- 핵심: 짧고 명확하게
+- 욕설/비난 금지
+- 2~5문장
+`.trim();
+
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: text }
+      ],
+      temperature: 0.6
     });
 
-    const content = response.choices?.[0]?.message?.content ?? "";
-    const coach = safeJsonParse(content);
+    const reply = completion.choices?.[0]?.message?.content?.trim() || "(응답이 비어있음)";
+    console.log("[COACH] reply:", reply);
 
-    // ✅ 최소 검증 및 보정
-    if (!coach.summary) coach.summary = "요약을 만들지 못했어요.";
-    if (!Array.isArray(coach.actions)) coach.actions = [];
-    while (coach.actions.length < 3) {
-      coach.actions.push("지금 할 수 있는 작은 행동을 하나 정해보세요.");
-    }
-    coach.actions = coach.actions.slice(0, 3);
-
-    return res.json({ ok: true, coach });
+    res.json({ reply });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({
-      ok: false,
-      error: err?.message || "Server error",
+    console.error("[COACH ERROR]", err?.message || err);
+    res.status(500).json({
+      error: "Coach failed",
+      detail: err?.message || String(err)
     });
   }
 });
 
-// --------------------
-// Render Port Listen
-// --------------------
-const PORT = process.env.PORT || 10000;
+// ✅ Render 포트
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Silent Coach running on port ${PORT}`);
-  console.log("Your service is live 🚀");
+  console.log(`✅ Silent Coach running on port ${PORT}`);
 });

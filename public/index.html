@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Silent Coach</title>
 
+  <!-- ✅ PWA: manifest + theme-color + icons -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224">
+  <link rel="icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
   <style>
     * { box-sizing: border-box; }
     body {
@@ -272,7 +278,6 @@
           if (event.results[i].isFinal) finalText += txt + " ";
           else interim += txt;
         }
-        // 화면 표시 (final + interim)
         interimText.value = (finalText + interim).trim();
       };
 
@@ -334,9 +339,7 @@
       setAI("준비");
       try {
         recognition.start();
-      } catch (e) {
-        // start 연속 호출 방지
-      }
+      } catch (e) {}
     });
 
     stopBtn.addEventListener("click", async () => {
@@ -345,7 +348,6 @@
       } else {
         setMic(false, "중지");
       }
-      // ✅ 핵심: Stop 누르면 코치 호출
       await callCoach();
     });
 
@@ -357,11 +359,21 @@
       setNet("");
       setMic(false, "대기");
     });
-      document.getElementById("coachBtn").addEventListener("click", callCoach);
+
+    document.getElementById("coachBtn").addEventListener("click", callCoach);
 
     // 초기 상태
     setMic(false, "대기");
     setAI("준비");
+  </script>
+
+  <!-- ✅ PWA Service Worker 등록 (</body> 바로 위) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(console.error);
+      });
+    }
   </script>
 </body>
 </html>

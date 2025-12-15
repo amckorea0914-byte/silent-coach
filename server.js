@@ -1,96 +1,106 @@
-// server.js (ESM / type:module 대응)
+// server.js (ESM) - Render friendly
 import "dotenv/config";
-
-import path from "path";
-import { fileURLToPath } from "url";
 
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import OpenAI from "openai";
-
-// ESM에서 __dirname 만들기
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Render/브라우저 호출 허용
+// ---- ESM에서 __dirname 만들기 ----
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ---- 환경변수 ----
+const PORT = process.env.PORT || 3000;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+
+// ---- 미들웨어 (순서 중요) ----
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "1mb" })); // ✅ body 파싱은 라우트보다 먼저!
 
-// ✅ 정적 파일 제공: public/index.html
-app.use(express.static(path.join(__dirname, "public")));
-
-// ✅ OpenAI 클라이언트
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
-  console.warn("⚠️ OPENAI_API_KEY가 설정되어 있지 않습니다. Render 환경변수 확인 필요!");
-}
-const client = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-// ✅ 헬스 체크 (Render 확인용)
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
+// ---- 헬스체크 ----
+app.get("/healthz", (req, res) => {
+  res.status(200).send("ok");
 });
 
-// ✅ 코치 응답 API
+// ---- 핑 (반드시 JSON) ----
+app.get("/api/ping", (req, res) => {
+  res.status(200).json({ ok: true, pong: true, ts: Date.now() });
+});
+
+// ---- 코치 API ----
 app.post("/api/coach", async (req, res) => {
   try {
-    const {
-      text = "",
-      tone = "calm",     // calm | strict | friendly 등
-      length = "medium", // short | medium | long
-      lang = "ko",       // ko 기본
-    } = req.body || {};
-
-    const userText = String(text).trim();
-    if (!userText) {
-      return res.status(400).json({ ok: false, error: "text is required" });
-    }
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({ ok: false, error: "OPENAI_API_KEY missing" });
+      return res.status(500).json({
+        ok: false,
+        error: "OPENAI_API_KEY is missing on server",
+      });
     }
 
-    // 길이 가이드
-    const lengthGuide =
-      length === "short"
-        ? "2~3문장"
-        : length === "long"
-        ? "8~12문장"
-        : "4~7문장";
+    const { text, tone = "calm", length = "medium" } = req.body || {};
 
-    const system = [
-      "You are a coaching assistant.",
-      "Answer as plain text only.",
-      `Write in ${lang === "ko" ? "Korean" : "English"}.`,
-      `Tone: ${tone}.`,
-      `Length: ${lengthGuide}.`,
-      "Give practical steps. Avoid long preambles.",
-    ].join(" ");
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing required field: text",
+      });
+    }
 
+    const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+    const system = `
+You are "Silent Coach".
+Give a short, practical coaching response in Korean.
+Tone: ${tone}
+Length: ${length}
+- Use simple sentences.
+- Prefer 3~6 bullet points or short steps when helpful.
+- Avoid medical/legal claims.
+`.trim();
+
+    const user = text.trim();
+
+    // ⚠️ 모델명은 계정/권한에 따라 다를 수 있어.
+    // Render에서 실패하면 로그/에러 JSON에 모델 관련 메시지가 찍힘.
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.4,
       messages: [
         { role: "system", content: system },
-        { role: "user", content: userText },
+        { role: "user", content: user },
       ],
+      temperature: 0.7,
     });
 
-    const answer = completion?.choices?.[0]?.message?.content?.trim() || "";
-    return res.json({ ok: true, answer });
+    const content =
+      completion?.choices?.[0]?.message?.content?.trim() || "";
+
+    return res.status(200).json({
+      ok: true,
+      coach: content,
+      usage: completion?.usage || null,
+    });
   } catch (err) {
-    console.error("❌ /api/coach error:", err?.message || err);
+    // ✅ 어떤 오류든 JSON으로 반환해서 프론트가 파싱 실패 안 하게
     return res.status(500).json({
       ok: false,
-      error: "coach_failed",
-      detail: err?.message ? String(err.message) : "unknown",
+      error: err?.message || String(err),
     });
   }
 });
 
-// ✅ PORT: 로컬은 3000, Render는 자동 PORT 사용
-const PORT = Number(process.env.PORT || 3000);
+// ---- 정적 파일 제공 (public/index.html) ----
+app.use(express.static(path.join(__dirname, "public")));
+
+// ---- SPA fallback (중요: /api, /healthz 제외) ----
+app.get(/^\/(?!api\/|healthz).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ---- 서버 시작 ----
 app.listen(PORT, () => {
-  console.log(`✅ Silent Coach running: http://localhost:${PORT}`);
+  console.log(`✅ Silent Coach running on port ${PORT}`);
 });
